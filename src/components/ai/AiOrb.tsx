@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { AiEyes } from './AiEyes';
 
@@ -22,7 +23,7 @@ export const AiOrb: React.FC = () => {
   }, []);
   
   return (
-    <div className="relative flex items-center justify-center my-12">
+    <div className="relative flex flex-col items-center justify-center my-12">
       <div className="absolute animate-rotate-slow opacity-10">
         <div className="w-64 h-64 rounded-full border-2 border-dashed border-steel-gray/30"></div>
       </div>
@@ -37,9 +38,13 @@ export const AiOrb: React.FC = () => {
         </div>
       </div>
       
-      <div className="absolute -bottom-6">
-        <div className="status-message text-xs">■ Neural core active</div>
+      <div className="absolute -bottom-6 flex items-center justify-center space-x-2">
+        <div className="w-2 h-2 rounded-full bg-neon-blue animate-pulse"></div>
+        <div className="status-message text-xs text-center">
+          Neural core active
+        </div>
       </div>
     </div>
   );
 };
+
