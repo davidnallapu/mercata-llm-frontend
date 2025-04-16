@@ -23,8 +23,8 @@ export const AiOrb: React.FC = () => {
   }, []);
   
   return (
-    <div className="relative flex items-center justify-between my-12 w-full max-w-2xl mx-auto">
-      <div className="relative flex-1">
+    <div className="flex items-center justify-center w-full max-w-4xl mx-auto my-12 px-4">
+      <div className="flex-1 flex justify-center relative">
         <div className="absolute animate-rotate-slow opacity-10">
           <div className="w-64 h-64 rounded-full border-2 border-dashed border-steel-gray/30"></div>
         </div>
@@ -40,7 +40,7 @@ export const AiOrb: React.FC = () => {
       </div>
 
       {/* Status metrics panel */}
-      <div className="flex-1 ml-8">
+      <div className="w-80 ml-8">
         <div className="bg-dark-bg-accent/30 p-4 rounded-lg border border-neon-blue/20">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
