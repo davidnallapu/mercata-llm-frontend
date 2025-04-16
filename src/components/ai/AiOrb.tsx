@@ -23,28 +23,56 @@ export const AiOrb: React.FC = () => {
   }, []);
   
   return (
-    <div className="relative flex flex-col items-center justify-center my-12">
-      <div className="absolute animate-rotate-slow opacity-10">
-        <div className="w-64 h-64 rounded-full border-2 border-dashed border-steel-gray/30"></div>
-      </div>
-      <div className="absolute animate-rotate-slow opacity-20" style={{ animationDuration: '25s' }}>
-        <div className="w-52 h-52 rounded-full border-2 border-dashed border-neon-blue/20"></div>
-      </div>
-      
-      {/* Replace the image with our new AI eyes */}
-      <div className="ai-orb z-10">
-        <div className="absolute inset-0 flex items-center justify-center">
-          <AiEyes isActive={isActive} />
+    <div className="relative flex items-center justify-between my-12 w-full max-w-2xl mx-auto">
+      <div className="relative flex-1">
+        <div className="absolute animate-rotate-slow opacity-10">
+          <div className="w-64 h-64 rounded-full border-2 border-dashed border-steel-gray/30"></div>
+        </div>
+        <div className="absolute animate-rotate-slow opacity-20" style={{ animationDuration: '25s' }}>
+          <div className="w-52 h-52 rounded-full border-2 border-dashed border-neon-blue/20"></div>
+        </div>
+        
+        <div className="ai-orb z-10">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <AiEyes isActive={isActive} />
+          </div>
         </div>
       </div>
-      
-      <div className="absolute -bottom-6 flex items-center justify-center space-x-2">
-        <div className="w-2 h-2 rounded-full bg-neon-blue animate-pulse"></div>
-        <div className="status-message text-xs text-center">
-          Neural core active
+
+      {/* Status metrics panel */}
+      <div className="flex-1 ml-8">
+        <div className="bg-dark-bg-accent/30 p-4 rounded-lg border border-neon-blue/20">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-steel-gray">Neural Core</div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-neon-blue animate-pulse"></div>
+                <span className="text-xs text-neon-blue">Active</span>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-steel-gray">CPU Usage</div>
+              <div className="text-xs text-neon-blue">78.3%</div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-steel-gray">AI Swarm</div>
+              <div className="text-xs text-neon-blue">92.7%</div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-steel-gray">Memory Load</div>
+              <div className="text-xs text-neon-blue">64.1%</div>
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-steel-gray">Neural Sync</div>
+              <div className="text-xs text-neon-blue">99.9%</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 };
-
