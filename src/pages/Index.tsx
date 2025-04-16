@@ -21,7 +21,7 @@ const Index = () => {
     const timer = setTimeout(() => {
       setMessages([
         { 
-          text: "Hello! I'm your AI assistant. How can I help you today?", 
+          text: "Hello! I'm Mark Attenborough or Mercata for short", 
           isAi: true 
         }
       ]);
