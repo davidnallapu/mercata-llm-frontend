@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AiOrb } from '@/components/ai/AiOrb';
 import { StatusMessages } from '@/components/ai/StatusMessages';
@@ -44,25 +43,6 @@ const Index = () => {
   
   const handleProcessingComplete = () => {
     setIsProcessing(false);
-    
-    // Simulate AI response
-    const responses = [
-      "I understand your query. Let me analyze this for you.",
-      "That's an interesting question. Based on my analysis, here's what I found.",
-      "I've processed your request and can provide the following information.",
-      "According to my neural networks, here's the optimal response to your query."
-    ];
-    
-    // Choose random response
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-    
-    // Add AI response after a short delay
-    setTimeout(() => {
-      setMessages(prevMessages => [
-        ...prevMessages,
-        { text: randomResponse, isAi: true }
-      ]);
-    }, 500);
   };
   
   return (
