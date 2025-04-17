@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ArrowRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import DataTable from 'react-data-table-component';
 
 interface SearchBarProps {
   onSubmit: (query: string) => void;
@@ -169,9 +170,465 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSubmit }) => {
     queryHistoryLength: queryHistory.length
   });
   
+  // Helper to parse markdown tables into data for react-data-table-component
+  const parseTableData = (children: React.ReactNode) => {
+    try {
+      const tableContent = React.Children.toArray(children);
+      const headers: string[] = [];
+      const rows: Record<string, any>[] = [];
+      
+      // Find the thead and extract column names
+      const thead = tableContent.find((child: any) => child.type === 'thead');
+      if (thead && thead.props && thead.props.children) {
+        const headerRow = React.Children.toArray(thead.props.children)[0];
+        if (headerRow && headerRow.props && headerRow.props.children) {
+          React.Children.forEach(headerRow.props.children, (th: any) => {
+            if (th.props && th.props.children) {
+              headers.push(String(th.props.children));
+            }
+          });
+        }
+      }
+      
+      // Find the tbody and extract rows
+      const tbody = tableContent.find((child: any) => child.type === 'tbody');
+      if (tbody && tbody.props && tbody.props.children) {
+        React.Children.forEach(tbody.props.children, (tr: any) => {
+          if (tr.props && tr.props.children) {
+            const rowData: Record<string, any> = {};
+            React.Children.forEach(tr.props.children, (td: any, index: number) => {
+              if (td.props && td.props.children && headers[index]) {
+                rowData[headers[index]] = td.props.children;
+              }
+            });
+            rows.push(rowData);
+          }
+        });
+      }
+      
+      return { columns: headers.map(h => ({ name: h, selector: (row: any) => row[h] })), data: rows };
+    } catch (error) {
+      console.error('Error parsing table data:', error);
+      return { columns: [], data: [] };
+    }
+  };
+
+  // Custom theme for DataTable - improving text contrast for better readability
+  const customTableStyles = {
+    table: {
+      style: {
+        backgroundColor: '#1f2937',
+        color: 'white',
+      },
+    },
+    headRow: {
+      style: {
+        backgroundColor: '#374151',
+        color: '#00FFFF', // Keeping bright color for headers
+        fontWeight: 'bold',
+        borderBottom: '1px solid #4B5563',
+      },
+    },
+    headCells: {
+      style: {
+        padding: '16px',
+        fontSize: '1rem',
+      },
+    },
+    rows: {
+      style: {
+        backgroundColor: '#1f2937',
+        '&:nth-of-type(odd)': {
+          backgroundColor: '#111827',
+        },
+        '&:hover': {
+          backgroundColor: '#2d3748',
+          cursor: 'pointer',
+        },
+        minHeight: '48px',
+      },
+    },
+    cells: {
+      style: {
+        padding: '16px',
+        fontSize: '0.9rem',
+        color: 'white', // Ensuring cell text is white for better contrast
+      },
+    },
+    pagination: {
+      style: {
+        color: 'white', // Ensuring pagination text is white
+        backgroundColor: '#1f2937',
+      },
+      pageButtonsStyle: {
+        color: 'white',
+        fill: 'white',
+      },
+    },
+  };
+
+  // Fixed renderResponse function to properly handle tables
+  const renderResponse = (markdownContent: string) => {
+    // Check if the content contains table markers
+    if (markdownContent.includes('|') && markdownContent.includes('\n')) {
+      // Extract tables from markdown content
+      const lines = markdownContent.split('\n');
+      const tableSegments = [];
+      const otherSegments = [];
+      
+      let inTable = false;
+      let currentTable = '';
+      let currentNonTable = '';
+      
+      // Process the markdown content line by line
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        
+        // Check if this line looks like part of a table (has multiple | characters)
+        if (line.trim().startsWith('|') && line.trim().endsWith('|') && line.split('|').length > 2) {
+          if (!inTable) {
+            // Add accumulated non-table content
+            if (currentNonTable) {
+              otherSegments.push(currentNonTable);
+              currentNonTable = '';
+            }
+            inTable = true;
+            currentTable = line + '\n';
+          } else {
+            currentTable += line + '\n';
+          }
+        } else {
+          if (inTable) {
+            // End of a table
+            if (currentTable.trim()) {
+              tableSegments.push(currentTable);
+              currentTable = '';
+            }
+            inTable = false;
+            currentNonTable = line + '\n';
+          } else {
+            currentNonTable += line + '\n';
+          }
+        }
+      }
+      
+      // Add final segments
+      if (inTable && currentTable.trim()) {
+        tableSegments.push(currentTable);
+      }
+      if (currentNonTable.trim()) {
+        otherSegments.push(currentNonTable);
+      }
+      
+      // If we found tables, render the content with tables properly integrated
+      if (tableSegments.length > 0) {
+        return (
+          <div>
+            {otherSegments.map((segment, segmentIndex) => {
+              // Find if there should be a table after this segment
+              if (segmentIndex < tableSegments.length) {
+                return (
+                  <React.Fragment key={segmentIndex}>
+                    <ReactMarkdown
+                      components={{
+                        code({node, inline, className, children, ...props}) {
+                          const match = /language-(\w+)/.exec(className || '');
+                          return !inline && match ? (
+                            <SyntaxHighlighter
+                              style={tomorrow}
+                              language={match[1]}
+                              PreTag="div"
+                              className="rounded-md"
+                              {...props}
+                            >
+                              {String(children).replace(/\n$/, '')}
+                            </SyntaxHighlighter>
+                          ) : (
+                            <code className={`bg-gray-700 px-1 py-0.5 rounded text-white font-mono text-sm`} {...props}>
+                              {children}
+                            </code>
+                          );
+                        },
+                        // Include other component customizations but exclude table-related ones
+                        pre({node, children, ...props}) {
+                          return (
+                            <pre className="bg-gray-900 p-3 rounded-md overflow-x-auto text-sm font-mono" {...props}>
+                              {children}
+                            </pre>
+                          );
+                        },
+                        p({node, children, ...props}) {
+                          return (
+                            <p className="mb-4 leading-relaxed" {...props}>
+                              {children}
+                            </p>
+                          );
+                        },
+                        h1({node, children, ...props}) {
+                          return <h1 className="text-2xl font-bold mb-4 text-neon-blue" {...props}>{children}</h1>;
+                        },
+                        h2({node, children, ...props}) {
+                          return <h2 className="text-xl font-bold mb-3 text-neon-blue" {...props}>{children}</h2>;
+                        },
+                        h3({node, children, ...props}) {
+                          return <h3 className="text-lg font-bold mb-2 text-neon-blue" {...props}>{children}</h3>;
+                        },
+                        ul({node, children, ...props}) {
+                          return <ul className="list-disc pl-6 mb-4 space-y-2" {...props}>{children}</ul>;
+                        },
+                        ol({node, children, ...props}) {
+                          return <ol className="list-decimal pl-6 mb-4 space-y-2" {...props}>{children}</ol>;
+                        },
+                        li({node, children, ...props}) {
+                          return <li className="mb-1" {...props}>{children}</li>;
+                        },
+                        blockquote({node, children, ...props}) {
+                          return (
+                            <blockquote className="border-l-4 border-neon-blue pl-4 italic my-4" {...props}>
+                              {children}
+                            </blockquote>
+                          );
+                        },
+                        a({node, children, ...props}) {
+                          return (
+                            <a className="text-neon-blue hover:underline" {...props}>
+                              {children}
+                            </a>
+                          );
+                        },
+                        hr({...props}) {
+                          return <hr className="my-4 border-gray-600" {...props} />;
+                        },
+                      }}
+                    >
+                      {segment}
+                    </ReactMarkdown>
+                    
+                    {/* Render table after this segment */}
+                    {(() => {
+                      const tableContent = tableSegments[segmentIndex];
+                      const parsedTable = parseMarkdownTable(tableContent);
+                      if (parsedTable.columns.length > 0) {
+                        return (
+                          <div className="my-6 overflow-hidden rounded-lg">
+                            <DataTable
+                              columns={parsedTable.columns}
+                              data={parsedTable.data}
+                              customStyles={customTableStyles}
+                              pagination
+                              highlightOnHover
+                              responsive
+                              striped
+                            />
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </React.Fragment>
+                );
+              } else {
+                // Just render the segment without a table
+                return (
+                  <ReactMarkdown
+                    key={segmentIndex}
+                    components={{
+                      code({node, inline, className, children, ...props}) {
+                        const match = /language-(\w+)/.exec(className || '');
+                        return !inline && match ? (
+                          <SyntaxHighlighter
+                            style={tomorrow}
+                            language={match[1]}
+                            PreTag="div"
+                            className="rounded-md"
+                            {...props}
+                          >
+                            {String(children).replace(/\n$/, '')}
+                          </SyntaxHighlighter>
+                        ) : (
+                          <code className={`bg-gray-700 px-1 py-0.5 rounded text-white font-mono text-sm`} {...props}>
+                            {children}
+                          </code>
+                        );
+                      },
+                      // Include other component customizations
+                      pre({node, children, ...props}) {
+                        return (
+                          <pre className="bg-gray-900 p-3 rounded-md overflow-x-auto text-sm font-mono" {...props}>
+                            {children}
+                          </pre>
+                        );
+                      },
+                      // ... other components as in the original code
+                    }}
+                  >
+                    {segment}
+                  </ReactMarkdown>
+                );
+              }
+            })}
+            
+            {/* If there are more tables than non-table segments, render the remaining tables */}
+            {tableSegments.slice(otherSegments.length).map((tableContent, index) => {
+              const parsedTable = parseMarkdownTable(tableContent);
+              if (parsedTable.columns.length > 0) {
+                return (
+                  <div key={`extra-table-${index}`} className="my-6 overflow-hidden rounded-lg">
+                    <DataTable
+                      columns={parsedTable.columns}
+                      data={parsedTable.data}
+                      customStyles={customTableStyles}
+                      pagination
+                      highlightOnHover
+                      responsive
+                      striped
+                    />
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
+        );
+      }
+    }
+    
+    // Default rendering if no tables detected - unchanged
+    return (
+      <ReactMarkdown
+        components={{
+          code({node, inline, className, children, ...props}: {
+            node: any;
+            inline?: boolean;
+            className?: string;
+            children: React.ReactNode;
+            [key: string]: any;
+          }) {
+            const match = /language-(\w+)/.exec(className || '');
+            return !inline && match ? (
+              <SyntaxHighlighter
+                style={tomorrow}
+                language={match[1]}
+                PreTag="div"
+                className="rounded-md"
+                {...props}
+              >
+                {String(children).replace(/\n$/, '')}
+              </SyntaxHighlighter>
+            ) : (
+              <code className={`bg-gray-700 px-1 py-0.5 rounded text-white font-mono text-sm`} {...props}>
+                {children}
+              </code>
+            );
+          },
+          pre({node, children, ...props}) {
+            return (
+              <pre className="bg-gray-900 p-3 rounded-md overflow-x-auto text-sm font-mono" {...props}>
+                {children}
+              </pre>
+            );
+          },
+          p({node, children, ...props}) {
+            return (
+              <p className="mb-4 leading-relaxed" {...props}>
+                {children}
+              </p>
+            );
+          },
+          h1({node, children, ...props}) {
+            return <h1 className="text-2xl font-bold mb-4 text-neon-blue" {...props}>{children}</h1>;
+          },
+          h2({node, children, ...props}) {
+            return <h2 className="text-xl font-bold mb-3 text-neon-blue" {...props}>{children}</h2>;
+          },
+          h3({node, children, ...props}) {
+            return <h3 className="text-lg font-bold mb-2 text-neon-blue" {...props}>{children}</h3>;
+          },
+          ul({node, children, ...props}) {
+            return <ul className="list-disc pl-6 mb-4 space-y-2" {...props}>{children}</ul>;
+          },
+          ol({node, children, ...props}) {
+            return <ol className="list-decimal pl-6 mb-4 space-y-2" {...props}>{children}</ol>;
+          },
+          li({node, children, ...props}) {
+            return <li className="mb-1" {...props}>{children}</li>;
+          },
+          blockquote({node, children, ...props}) {
+            return (
+              <blockquote className="border-l-4 border-neon-blue pl-4 italic my-4" {...props}>
+                {children}
+              </blockquote>
+            );
+          },
+          a({node, children, ...props}) {
+            return (
+              <a className="text-neon-blue hover:underline" {...props}>
+                {children}
+              </a>
+            );
+          },
+          hr({...props}) {
+            return <hr className="my-4 border-gray-600" {...props} />;
+          },
+        }}
+      >
+        {markdownContent}
+      </ReactMarkdown>
+    );
+  };
+
+  // Fix the parseMarkdownTable function to better handle the table format
+  const parseMarkdownTable = (tableContent: string) => {
+    const lines = tableContent.split('\n').filter(line => line.trim());
+    if (lines.length < 3) return { columns: [], data: [] };
+    
+    // Parse headers - remove leading/trailing pipes and split by pipes
+    const headerLine = lines[0];
+    const headers = headerLine
+      .split('|')
+      .map(cell => cell.trim())
+      .filter(cell => cell.length > 0);
+    
+    // Skip the separator line (index 1)
+    
+    // Parse data rows
+    const data = [];
+    for (let i = 2; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line) continue;
+      
+      const rowData = {};
+      const cells = line
+        .split('|')
+        .map(cell => cell.trim())
+        .filter(cell => cell.length > 0);
+      
+      // Match cells to headers
+      headers.forEach((header, idx) => {
+        if (idx < cells.length) {
+          rowData[header] = cells[idx];
+        } else {
+          rowData[header] = ''; // Empty cell if no data
+        }
+      });
+      
+      data.push(rowData);
+    }
+    
+    return {
+      columns: headers.map(h => ({ 
+        name: h, 
+        selector: (row: any) => row[h],
+        sortable: true,
+        cell: (row) => <div className="text-white">{row[h]}</div> // Ensure text is white for visibility
+      })),
+      data
+    };
+  };
+
   // Create a conversation-style layout
   return (
-    <div className="flex flex-col h-full w-full max-w-6xl mx-auto">
+    <div className="flex flex-col h-full w-full max-w-10xl mx-auto">
       {/* Conversation area (scrollable) */}
       <div className="flex-grow overflow-y-auto mb-4 space-y-6">
         {/* Show past queries and responses in a conversation style */}
@@ -181,14 +638,14 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSubmit }) => {
               <div key={index} className="space-y-4">
                 {/* User query */}
                 <div className="flex justify-end">
-                  <div className="bg-neon-blue text-black rounded-lg p-3 max-w-[80%]">
+                  <div className="bg-neon-blue text-black rounded-lg p-3 max-w-[70%]">
                     <p>{q}</p>
                   </div>
                 </div>
                 
                 {/* AI response - show either completed response or loading state */}
                 <div className="flex justify-start">
-                  <div className="bg-gray-800 rounded-lg p-4 max-w-[90%] w-full">
+                  <div className="bg-gray-800 rounded-lg p-4 max-w-[95%] w-full">
                     {index === queryHistory.length - 1 ? (
                       loading ? (
                         <div className="flex flex-col">
@@ -216,108 +673,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSubmit }) => {
                         </div>
                       ) : response ? (
                         <div className="prose prose-invert max-w-none">
-                          <ReactMarkdown
-                            components={{
-                              code({node, inline, className, children, ...props}: {
-                                node: any;
-                                inline?: boolean;
-                                className?: string;
-                                children: React.ReactNode;
-                                [key: string]: any;
-                              }) {
-                                const match = /language-(\w+)/.exec(className || '');
-                                return !inline && match ? (
-                                  <SyntaxHighlighter
-                                    style={tomorrow}
-                                    language={match[1]}
-                                    PreTag="div"
-                                    className="rounded-md"
-                                    {...props}
-                                  >
-                                    {String(children).replace(/\n$/, '')}
-                                  </SyntaxHighlighter>
-                                ) : (
-                                  <code className={`bg-gray-700 px-1 py-0.5 rounded text-white font-mono text-sm`} {...props}>
-                                    {children}
-                                  </code>
-                                );
-                              },
-                              table({node, children, ...props}) {
-                                return (
-                                  <div className="overflow-x-auto">
-                                    <table className="border-collapse border border-gray-600 my-4 w-full" {...props}>
-                                      {children}
-                                    </table>
-                                  </div>
-                                );
-                              },
-                              th({node, children, ...props}) {
-                                return (
-                                  <th className="border border-gray-600 bg-gray-700 p-2 text-left" {...props}>
-                                    {children}
-                                  </th>
-                                );
-                              },
-                              td({node, children, ...props}) {
-                                return (
-                                  <td className="border border-gray-600 p-2" {...props}>
-                                    {children}
-                                  </td>
-                                );
-                              },
-                              pre({node, children, ...props}) {
-                                return (
-                                  <pre className="bg-gray-900 p-3 rounded-md overflow-x-auto text-sm font-mono" {...props}>
-                                    {children}
-                                  </pre>
-                                );
-                              },
-                              p({node, children, ...props}) {
-                                return (
-                                  <p className="mb-4 leading-relaxed" {...props}>
-                                    {children}
-                                  </p>
-                                );
-                              },
-                              h1({node, children, ...props}) {
-                                return <h1 className="text-2xl font-bold mb-4 text-neon-blue" {...props}>{children}</h1>;
-                              },
-                              h2({node, children, ...props}) {
-                                return <h2 className="text-xl font-bold mb-3 text-neon-blue" {...props}>{children}</h2>;
-                              },
-                              h3({node, children, ...props}) {
-                                return <h3 className="text-lg font-bold mb-2 text-neon-blue" {...props}>{children}</h3>;
-                              },
-                              ul({node, children, ...props}) {
-                                return <ul className="list-disc pl-6 mb-4 space-y-2" {...props}>{children}</ul>;
-                              },
-                              ol({node, children, ...props}) {
-                                return <ol className="list-decimal pl-6 mb-4 space-y-2" {...props}>{children}</ol>;
-                              },
-                              li({node, children, ...props}) {
-                                return <li className="mb-1" {...props}>{children}</li>;
-                              },
-                              blockquote({node, children, ...props}) {
-                                return (
-                                  <blockquote className="border-l-4 border-neon-blue pl-4 italic my-4" {...props}>
-                                    {children}
-                                  </blockquote>
-                                );
-                              },
-                              a({node, children, ...props}) {
-                                return (
-                                  <a className="text-neon-blue hover:underline" {...props}>
-                                    {children}
-                                  </a>
-                                );
-                              },
-                              hr({...props}) {
-                                return <hr className="my-4 border-gray-600" {...props} />;
-                              },
-                            }}
-                          >
-                            {response}
-                          </ReactMarkdown>
+                          {renderResponse(response)}
                         </div>
                       ) : (
                         <p className="text-gray-300">Waiting for response...</p>
@@ -335,7 +691,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSubmit }) => {
       
       {/* Fixed search input at the bottom */}
       <div className="sticky bottom-0 bg-gray-900 pt-4 pb-4">
-        <form onSubmit={handleSubmit} className="relative w-full max-w-2xl mx-auto">
+        <form onSubmit={handleSubmit} className="relative w-full max-w-3xl mx-auto">
           <input
             type="text"
             value={query}
